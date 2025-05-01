@@ -1,5 +1,5 @@
 """
-FMPy Validator
+FMI Validator
 一个基于FMPy的FMU文件验证工具
 """
 
