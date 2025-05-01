@@ -30,4 +30,4 @@ if __name__ == '__main__':
     print(f"监听地址: {host}:{port}")
     print(f"请在浏览器中访问: http://{host if host != '0.0.0.0' else 'localhost'}:{port}")
     
-    app.run(host=host, port=port, debug=False) 
+    app.run(host=host, port=port, debug=True) 

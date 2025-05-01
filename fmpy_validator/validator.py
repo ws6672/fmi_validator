@@ -357,7 +357,7 @@ class FMUValidator:
         return " & ".join(types) if types else "未知"
     
     def _validate_dll(self, fmu_path: str):
-        """验证DLL文件"""
+        """验证DLL文件，检查二进制存在并验证DLL中的函数符号是否符合协议要求"""
         try:
             with open_fmu(fmu_path) as zf:
                 file_list = zf.namelist()
@@ -386,6 +386,7 @@ class FMUValidator:
                             details='FMU不包含预编译的二进制文件，但包含源代码'
                         )
                     )
+                    return  # 如果没有二进制文件，无法验证DLL函数
                 
                 # 检查平台特定的二进制文件
                 platforms = {
@@ -397,9 +398,12 @@ class FMUValidator:
                 }
                 
                 found_platforms = []
+                platform_binaries = {}
                 for platform, path in platforms.items():
-                    if any(f.startswith(path) for f in file_list):
+                    platform_files = [f for f in file_list if f.startswith(path)]
+                    if platform_files:
                         found_platforms.append(platform)
+                        platform_binaries[platform] = platform_files
                 
                 if found_platforms:
                     self.validation_results['dll_validation'].append(
@@ -415,6 +419,372 @@ class FMUValidator:
                             status='warning',
                             message='未找到任何平台的二进制文件',
                             details='FMU可能只包含源代码或不完整'
+                        )
+                    )
+                    return  # 如果没有找到任何平台的二进制文件，结束验证
+                
+                # 读取modelDescription.xml获取FMI版本和模型类型信息
+                try:
+                    model_description = read_model_description(fmu_path, validate=False)
+                    fmi_version = model_description.fmiVersion
+                    model_type = self._get_model_type(model_description)
+                    
+                    # 获取模型标识符
+                    model_identifiers = []
+                    if model_description.coSimulation:
+                        model_identifiers.append(model_description.coSimulation.modelIdentifier)
+                    if model_description.modelExchange:
+                        model_identifiers.append(model_description.modelExchange.modelIdentifier)
+                    if hasattr(model_description, 'scheduledExecution') and model_description.scheduledExecution:
+                        model_identifiers.append(model_description.scheduledExecution.modelIdentifier)
+                    
+                    if not model_identifiers:
+                        self.validation_results['dll_validation'].append(
+                            ValidationResult(
+                                status='error',
+                                message='无法获取模型标识符',
+                                details='模型描述中没有找到有效的modelIdentifier'
+                            )
+                        )
+                        return
+                        
+                    self.validation_results['dll_validation'].append(
+                        ValidationResult(
+                            status='success',
+                            message=f'FMI版本: {fmi_version}, 模型类型: {model_type}',
+                            details=f'模型标识符: {", ".join(model_identifiers)}'
+                        )
+                    )
+                    
+                    # 根据当前系统选择合适的平台二进制文件
+                    import platform as plt
+                    import tempfile
+                    import ctypes
+                    
+                    # 判断当前系统平台
+                    is_win = plt.system().lower() == 'windows'
+                    is_64bit = plt.architecture()[0] == '64bit'
+                    
+                    target_platform = None
+                    if is_win:
+                        target_platform = 'win64' if is_64bit else 'win32'
+                    else:
+                        if 'darwin' in plt.system().lower():
+                            target_platform = 'darwin64'
+                        else:  # Linux
+                            target_platform = 'linux64' if is_64bit else 'linux32'
+                    
+                    if target_platform not in found_platforms:
+                        self.validation_results['dll_validation'].append(
+                            ValidationResult(
+                                status='warning',
+                                message=f'没有找到当前系统({target_platform})的二进制文件',
+                                details='将无法验证DLL函数符号'
+                            )
+                        )
+                        return
+                    
+                    # 定义不同FMI版本所需的函数
+                    required_functions = {}
+                    
+                    # FMI 1.0 所需函数
+                    if fmi_version.startswith('1.0'):
+                        if 'Co-Simulation' in model_type:
+                            required_functions['CS'] = [
+                                'fmiGetTypesPlatform', 'fmiGetVersion', 'fmiInstantiateSlave', 
+                                'fmiInitializeSlave', 'fmiTerminateSlave', 'fmiFreeSlaveInstance',
+                                'fmiSetDebugLogging', 'fmiSetReal', 'fmiSetInteger', 'fmiSetBoolean', 
+                                'fmiSetString', 'fmiGetReal', 'fmiGetInteger', 'fmiGetBoolean', 
+                                'fmiGetString', 'fmiDoStep', 'fmiCancelStep', 'fmiGetStatus', 
+                                'fmiGetRealStatus', 'fmiGetIntegerStatus', 'fmiGetBooleanStatus', 
+                                'fmiGetStringStatus'
+                            ]
+                        if 'Model Exchange' in model_type:
+                            required_functions['ME'] = [
+                                'fmiGetModelTypesPlatform', 'fmiGetVersion', 'fmiInstantiateModel', 
+                                'fmiInitialize', 'fmiTerminate', 'fmiFreeModelInstance',
+                                'fmiSetDebugLogging', 'fmiSetReal', 'fmiSetInteger', 'fmiSetBoolean', 
+                                'fmiSetString', 'fmiGetReal', 'fmiGetInteger', 'fmiGetBoolean', 
+                                'fmiGetString', 'fmiSetTime', 'fmiCompletedIntegratorStep', 
+                                'fmiGetStateValueReferences', 'fmiSetContinuousStates', 
+                                'fmiGetDerivatives', 'fmiGetEventIndicators', 'fmiEventUpdate', 
+                                'fmiGetContinuousStates', 'fmiGetNominalContinuousStates'
+                            ]
+                    
+                    # FMI 2.0 所需函数
+                    elif fmi_version.startswith('2.0'):
+                        common_functions = [
+                            'fmi2GetTypesPlatform', 'fmi2GetVersion', 'fmi2SetDebugLogging',
+                            'fmi2Instantiate', 'fmi2FreeInstance', 'fmi2SetupExperiment',
+                            'fmi2EnterInitializationMode', 'fmi2ExitInitializationMode',
+                            'fmi2Terminate', 'fmi2Reset', 'fmi2GetReal', 'fmi2GetInteger',
+                            'fmi2GetBoolean', 'fmi2GetString', 'fmi2SetReal', 'fmi2SetInteger',
+                            'fmi2SetBoolean', 'fmi2SetString', 'fmi2GetFMUstate', 'fmi2SetFMUstate',
+                            'fmi2FreeFMUstate', 'fmi2SerializedFMUstateSize', 'fmi2SerializeFMUstate',
+                            'fmi2DeSerializeFMUstate'
+                        ]
+                        
+                        if 'Co-Simulation' in model_type:
+                            required_functions['CS'] = common_functions + [
+                                'fmi2DoStep', 'fmi2CancelStep', 'fmi2GetStatus', 'fmi2GetRealStatus',
+                                'fmi2GetIntegerStatus', 'fmi2GetBooleanStatus', 'fmi2GetStringStatus'
+                            ]
+                            
+                        if 'Model Exchange' in model_type:
+                            required_functions['ME'] = common_functions + [
+                                'fmi2SetTime', 'fmi2SetContinuousStates', 'fmi2GetDerivatives',
+                                'fmi2GetEventIndicators', 'fmi2GetContinuousStates', 'fmi2GetNominalContinuousStates',
+                                'fmi2CompletedIntegratorStep', 'fmi2EnterEventMode', 'fmi2NewDiscreteStates',
+                                'fmi2EnterContinuousTimeMode'
+                            ]
+                    
+                    # FMI 3.0 所需函数
+                    elif fmi_version.startswith('3.0'):
+                        common_functions = [
+                            'fmi3GetVersion', 'fmi3SetDebugLogging', 'fmi3InstantiateCoSimulation',
+                            'fmi3InstantiateModelExchange', 'fmi3InstantiateScheduledExecution',
+                            'fmi3FreeInstance', 'fmi3EnterInitializationMode', 'fmi3ExitInitializationMode',
+                            'fmi3Terminate', 'fmi3Reset', 'fmi3GetFloat32', 'fmi3GetFloat64',
+                            'fmi3GetInt8', 'fmi3GetInt16', 'fmi3GetInt32', 'fmi3GetInt64',
+                            'fmi3GetUInt8', 'fmi3GetUInt16', 'fmi3GetUInt32', 'fmi3GetUInt64',
+                            'fmi3GetBoolean', 'fmi3GetString', 'fmi3GetBinary', 'fmi3SetFloat32',
+                            'fmi3SetFloat64', 'fmi3SetInt8', 'fmi3SetInt16', 'fmi3SetInt32',
+                            'fmi3SetInt64', 'fmi3SetUInt8', 'fmi3SetUInt16', 'fmi3SetUInt32',
+                            'fmi3SetUInt64', 'fmi3SetBoolean', 'fmi3SetString', 'fmi3SetBinary',
+                            'fmi3GetNumberOfVariableDependencies', 'fmi3GetVariableDependencies'
+                        ]
+                        
+                        if 'Co-Simulation' in model_type:
+                            required_functions['CS'] = common_functions + [
+                                'fmi3DoStep', 'fmi3EnterStepMode', 'fmi3GetOutputDerivatives'
+                            ]
+                            
+                        if 'Model Exchange' in model_type:
+                            required_functions['ME'] = common_functions + [
+                                'fmi3EnterEventMode', 'fmi3EnterContinuousTimeMode',
+                                'fmi3SetTime', 'fmi3SetContinuousStates', 'fmi3GetContinuousStateDerivatives',
+                                'fmi3GetEventIndicators', 'fmi3CompletedIntegratorStep'
+                            ]
+                            
+                        if 'Scheduled Execution' in model_type:
+                            required_functions['SE'] = common_functions + [
+                                'fmi3EnterClockActivationMode', 'fmi3GetIntervalDecimal',
+                                'fmi3GetIntervalFraction', 'fmi3ActivateModelPartition'
+                            ]
+                    
+                    # 遍历所有模型标识符，验证对应的DLL
+                    for model_id in model_identifiers:
+                        # 查找对应的DLL文件
+                        dll_path = None
+                        dll_ext = '.dll' if is_win else '.so'
+                        if not is_win and 'darwin' in plt.system().lower():
+                            dll_ext = '.dylib'
+                        
+                        # 规范化模型ID，避免与路径分隔符冲突
+                        model_id_safe = model_id.replace('/', '_').replace('\\', '_')
+                        
+                        # 更强大的DLL匹配算法
+                        for binary in platform_binaries.get(target_platform, []):
+                            # 确保文件扩展名匹配
+                            if not binary.endswith(dll_ext):
+                                continue
+                                
+                            # 检查路径中是否包含模型ID
+                            binary_basename = os.path.basename(binary)
+                            
+                            # 检查方式1: 直接匹配
+                            if model_id == binary_basename[:binary_basename.rfind('.')]:
+                                dll_path = binary
+                                break
+                                
+                            # 检查方式2: 模型ID在文件名中
+                            if model_id_safe in binary_basename:
+                                dll_path = binary
+                                break
+                                
+                            # 检查方式3: 模型ID在路径中，且是唯一的DLL文件
+                            if model_id in binary and binary.count(dll_ext) == 1:
+                                dll_path = binary
+                                break
+                        
+                        if not dll_path:
+                            self.validation_results['dll_validation'].append(
+                                ValidationResult(
+                                    status='error',
+                                    message=f'未找到模型{model_id}的DLL文件',
+                                    details=f'在{target_platform}平台下未找到对应的二进制文件'
+                                )
+                            )
+                            continue
+                        
+                        # 提取DLL到临时目录
+                        try:
+                            # 创建一个随机字母数字的安全文件名（避免使用FMU内原始文件名）
+                            import random
+                            import string
+                            
+                            # 使用tempfile创建临时文件而不是临时目录
+                            temp_dir = tempfile.gettempdir()
+                            random_suffix = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
+                            dll_ext = '.dll' if is_win else '.so'
+                            if not is_win and 'darwin' in plt.system().lower():
+                                dll_ext = '.dylib'
+                            
+                            # 创建安全的随机文件名
+                            safe_filename = f"fmu_model_{model_id_safe}_{random_suffix}{dll_ext}"
+                            # 替换任何可能的问题字符
+                            safe_filename = ''.join(c for c in safe_filename if c.isalnum() or c in '._-')
+                            
+                            # 创建绝对路径，避免任何相对路径问题
+                            temp_dll_path = os.path.abspath(os.path.join(temp_dir, safe_filename))
+                            logger.info(f"临时DLL绝对路径: {temp_dll_path}")
+                            
+                            try:
+                                # 提取DLL
+                                dll_content = zf.read(dll_path)
+                                logger.info(f"成功读取DLL内容，大小: {len(dll_content)} 字节")
+                                
+                                # 写入DLL文件内容
+                                with open(temp_dll_path, 'wb') as f:
+                                    f.write(dll_content)
+                                logger.info(f"DLL内容已写入临时文件: {temp_dll_path}")
+                                
+                                # 验证文件是否存在
+                                if not os.path.isfile(temp_dll_path):
+                                    error_msg = f"临时DLL文件未创建成功: {temp_dll_path}"
+                                    logger.error(error_msg)
+                                    raise FileNotFoundError(error_msg)
+                                
+                                # 加载DLL
+                                try:
+                                    logger.info(f"尝试加载DLL: {temp_dll_path}")
+                                    # 在Windows上，确保使用原生API加载
+                                    if is_win:
+                                        try:
+                                            import ctypes.wintypes
+                                            kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+                                            # 将路径转换为适合Windows API的格式
+                                            if not temp_dll_path.startswith('\\\\?\\'):
+                                                win_path = '\\\\?\\' + temp_dll_path
+                                            else:
+                                                win_path = temp_dll_path
+                                                
+                                            logger.info(f"Windows API路径: {win_path}")
+                                            handle = kernel32.LoadLibraryW(win_path)
+                                            
+                                            if handle:
+                                                logger.info("使用Windows LoadLibrary成功")
+                                                # 创建一个模拟的库对象用于检查函数
+                                                class WinLibraryProxy:
+                                                    def __init__(self, handle):
+                                                        self.handle = handle
+                                                    
+                                                    def __getattr__(self, name):
+                                                        try:
+                                                            proc_addr = kernel32.GetProcAddress(self.handle, name.encode('utf-8'))
+                                                            return bool(proc_addr)
+                                                        except:
+                                                            return False
+                                                
+                                                library = WinLibraryProxy(handle)
+                                            else:
+                                                error_code = ctypes.get_last_error()
+                                                raise OSError(f"LoadLibraryW失败，错误码: {error_code}")
+                                        except Exception as win_err:
+                                            logger.error(f"Windows API加载失败，尝试使用ctypes: {str(win_err)}")
+                                            # 回退到标准的CDLL方法
+                                            library = ctypes.CDLL(temp_dll_path)
+                                    else:
+                                        # 非Windows平台使用标准方法
+                                        library = ctypes.CDLL(temp_dll_path)
+                                        
+                                    logger.info(f"成功加载DLL")
+                                    
+                                    # 根据模型类型获取需要验证的函数
+                                    functions_to_check = []
+                                    if model_description.coSimulation and 'CS' in required_functions:
+                                        functions_to_check.extend(required_functions['CS'])
+                                    if model_description.modelExchange and 'ME' in required_functions:
+                                        functions_to_check.extend(required_functions['ME'])
+                                    if hasattr(model_description, 'scheduledExecution') and model_description.scheduledExecution and 'SE' in required_functions:
+                                        functions_to_check.extend(required_functions['SE'])
+                                    
+                                    # 去重
+                                    functions_to_check = list(set(functions_to_check))
+                                    
+                                    # 验证函数存在
+                                    missing_functions = []
+                                    for func_name in functions_to_check:
+                                        try:
+                                            func = getattr(library, func_name)
+                                            if not func:
+                                                missing_functions.append(func_name)
+                                        except AttributeError:
+                                            missing_functions.append(func_name)
+                                    
+                                    if missing_functions:
+                                        self.validation_results['dll_validation'].append(
+                                            ValidationResult(
+                                                status='error',
+                                                message=f'模型{model_id}的DLL缺少必要函数',
+                                                details=f'缺少函数: {", ".join(missing_functions)}'
+                                            )
+                                        )
+                                    else:
+                                        self.validation_results['dll_validation'].append(
+                                            ValidationResult(
+                                                status='success',
+                                                message=f'模型{model_id}的DLL函数验证通过',
+                                                details=f'验证了{len(functions_to_check)}个函数'
+                                            )
+                                        )
+                                except OSError as ose:
+                                    logger.error(f"加载DLL失败(OSError): {str(ose)}")
+                                    self.validation_results['dll_validation'].append(
+                                        ValidationResult(
+                                            status='error',
+                                            message=f'无法加载DLL: {str(ose)}',
+                                            details=f'模型{model_id}的DLL可能缺少依赖或不兼容'
+                                        )
+                                    )
+                                    # 清理临时文件
+                                    try:
+                                        if os.path.exists(temp_dll_path):
+                                            os.remove(temp_dll_path)
+                                    except:
+                                        pass
+                                    continue
+                            except Exception as extract_error:
+                                logger.error(f"DLL处理失败: {str(extract_error)}")
+                                self.validation_results['dll_validation'].append(
+                                    ValidationResult(
+                                        status='error',
+                                        message=f'提取DLL文件失败: {str(extract_error)}',
+                                        details=f'无法提取模型{model_id}的DLL文件进行验证'
+                                    )
+                                )
+                                # 清理临时文件
+                                try:
+                                    if os.path.exists(temp_dll_path):
+                                        os.remove(temp_dll_path)
+                                except:
+                                    pass
+                        except Exception as general_error:
+                            logger.error(f"DLL验证过程发生未预期错误: {str(general_error)}")
+                            self.validation_results['dll_validation'].append(
+                                ValidationResult(
+                                    status='error',
+                                    message=f'DLL验证失败: {str(general_error)}',
+                                    details=f'验证模型{model_id}时发生错误'
+                                )
+                            )
+                
+                except Exception as md_error:
+                    self.validation_results['dll_validation'].append(
+                        ValidationResult(
+                            status='error',
+                            message='读取模型描述失败',
+                            details=f'无法获取FMI版本和模型类型: {str(md_error)}'
                         )
                     )
                 
