@@ -2,6 +2,8 @@
 
 一个基于Web的FMU验证工具，用于验证Functional Mock-up Units (FMUs)的完整性和正确性。
 
+![image](https://github.com/user-attachments/assets/8704f1d4-1cae-418a-aead-b2eb61d4da7c)
+
 
 
 ## 功能特点
