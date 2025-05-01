@@ -1,4 +1,4 @@
-# FMPy Validator
+# FMI Validator
 
 一个基于Web的FMU验证工具，用于验证Functional Mock-up Units (FMUs)的完整性和正确性。
 
@@ -63,7 +63,7 @@ python install_dependencies.py
 pip install fmpy flask werkzeug pytest
 ```
 
-#### 步骤 2: 安装 FMPy Validator（开发模式）
+#### 步骤 2: 安装 FMI Validator（开发模式）
 
 ```bash
 # 进入项目根目录
@@ -126,7 +126,7 @@ python -m flask --app fmpy_validator.webapp.app run --host=0.0.0.0 --port=5000
 
 ### 方法三：安装为包后启动
 
-如果您已经将FMPy Validator安装为包（使用`pip install .`而非开发模式），可以从任何位置启动：
+如果您已经将FMI Validator安装为包（使用`pip install .`而非开发模式），可以从任何位置启动：
 
 ```bash
 # 直接启动模块

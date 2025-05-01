@@ -1,5 +1,5 @@
 """
-FMPy Validator Web Application Entry Point
+FMI Validator Web Application Entry Point
 """
 
 import os
@@ -26,7 +26,7 @@ if __name__ == '__main__':
     host = os.environ.get('FMPY_VALIDATOR_HOST', '0.0.0.0')
     port = int(os.environ.get('FMPY_VALIDATOR_PORT', 5000))
     
-    print(f"启动FMPy Validator Web应用...")
+    print(f"启动FMI Validator Web应用...")
     print(f"监听地址: {host}:{port}")
     print(f"请在浏览器中访问: http://{host if host != '0.0.0.0' else 'localhost'}:{port}")
     

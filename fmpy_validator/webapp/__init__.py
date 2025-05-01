@@ -1,5 +1,5 @@
 """
-FMPy Validator Web Application
+FMI Validator Web Application
 """
 
 from .app import app
