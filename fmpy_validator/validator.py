@@ -662,15 +662,14 @@ class FMUValidator:
                                     if is_win:
                                         try:
                                             import ctypes.wintypes
-                                            kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
-                                            # 将路径转换为适合Windows API的格式
                                             if not temp_dll_path.startswith('\\\\?\\'):
                                                 win_path = '\\\\?\\' + temp_dll_path
                                             else:
                                                 win_path = temp_dll_path
+                                            handle = ctypes.cdll.LoadLibrary(temp_dll_path)
+                                            # 将路径转换为适合Windows API的格式
                                                 
                                             logger.info(f"Windows API路径: {win_path}")
-                                            handle = kernel32.LoadLibraryW(win_path)
                                             
                                             if handle:
                                                 logger.info("使用Windows LoadLibrary成功")
@@ -681,8 +680,9 @@ class FMUValidator:
                                                     
                                                     def __getattr__(self, name):
                                                         try:
-                                                            proc_addr = kernel32.GetProcAddress(self.handle, name.encode('utf-8'))
-                                                            return bool(proc_addr)
+                                                            # func_bytes = name.encode("ascii")
+                                                            address = handle.__getattr__(name)
+                                                            return bool(address)
                                                         except:
                                                             return False
                                                 
