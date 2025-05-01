@@ -1,0 +1,29 @@
+[project]
+name = "fmpy_validator"
+version = "0.1.0"
+description = "A web-based FMU validator"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "FMPy Team"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10"
+]
+dependencies = [
+    "fmpy",
+    "flask",
+    "werkzeug"
+]
+
+[tool.setuptools]
+packages = ["fmpy_validator", "fmpy_validator.webapp"]
+package-dir = {"" = "."}
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta" 

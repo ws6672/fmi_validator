@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FMPy Validator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #4a6bff;
+            --primary-hover: #3a5bef;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --text-color: #2c3e50;
+            --text-light: #6c757d;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --border-color: #e9ecef;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), #6c5ce7);
+            color: white;
+            padding: 3rem 0;
+            margin-bottom: 2rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+            opacity: 0.1;
+        }
+
+        .container {
+            max-width: 900px;
+            flex: 1;
+        }
+
+        h1 {
+            font-weight: 700;
+            margin-bottom: 1rem;
+            position: relative;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .subtitle {
+            font-weight: 300;
+            opacity: 0.9;
+            margin-bottom: 0;
+        }
+
+        .card {
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 8px 30px var(--shadow-color);
+            background: var(--card-bg);
+            transition: all 0.3s ease;
+            margin-bottom: 2rem;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 35px var(--shadow-color);
+        }
+
+        .card-header {
+            background: transparent;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1.5rem;
+        }
+
+        .card-body {
+            padding: 2rem;
+        }
+
+        .drop-zone {
+            border: 2px dashed #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .drop-zone:hover {
+            border-color: #0d6efd;
+            background-color: #f8f9fa;
+        }
+
+        .drop-zone.dragover {
+            border-color: #0d6efd;
+            background-color: #e9ecef;
+        }
+
+        .drop-zone i {
+            font-size: 3rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .drop-zone p {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+            position: relative;
+        }
+
+        .drop-zone small {
+            color: var(--text-light);
+            position: relative;
+        }
+
+        .file-preview {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            background: rgba(74, 107, 255, 0.05);
+            border-radius: 12px;
+            margin: 1rem 0;
+        }
+
+        .file-preview i {
+            font-size: 2rem;
+            color: var(--primary-color);
+            margin-right: 1rem;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+
+        .file-size {
+            color: var(--text-light);
+            font-size: 0.875rem;
+        }
+
+        .validation-result {
+            margin-top: 20px;
+        }
+
+        .problem-item {
+            margin: 0.75rem 0;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+        }
+
+        .problem-item i {
+            margin-right: 1rem;
+            font-size: 1.25rem;
+        }
+
+        .problem-item.error {
+            background-color: rgba(220, 53, 69, 0.1);
+            border: 1px solid rgba(220, 53, 69, 0.2);
+            color: var(--danger-color);
+        }
+
+        .problem-item.warning {
+            background-color: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.2);
+            color: var(--warning-color);
+        }
+
+        .progress {
+            height: 25px;
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, var(--primary-color), #6c5ce7);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .toast {
+            background: var(--card-bg);
+            border: none;
+            box-shadow: 0 4px 12px var(--shadow-color);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .table {
+            margin-bottom: 0;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .table th {
+            font-weight: 500;
+            color: var(--text-light);
+            background: rgba(74, 107, 255, 0.05);
+            padding: 1rem;
+        }
+
+        .table td {
+            color: var(--text-color);
+            padding: 1rem;
+            vertical-align: middle;
+        }
+
+        .alert {
+            border: none;
+            border-radius: 12px;
+            padding: 1.25rem;
+            display: flex;
+            align-items: center;
+        }
+
+        .alert i {
+            margin-right: 1rem;
+            font-size: 1.5rem;
+        }
+
+        .alert-success {
+            background-color: rgba(40, 167, 69, 0.1);
+            color: var(--success-color);
+        }
+
+        .footer {
+            background: var(--card-bg);
+            padding: 2rem 0;
+            margin-top: 3rem;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .error-message {
+            color: #dc3545;
+            margin-top: 10px;
+        }
+
+        .success-message {
+            color: #198754;
+            margin-top: 10px;
+        }
+
+        .report-section {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+
+        .validation-details {
+            margin-top: 15px;
+        }
+
+        .validation-item {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-left: 4px solid #dee2e6;
+        }
+
+        .validation-item.success {
+            border-left-color: #198754;
+            background-color: #f8fff9;
+        }
+
+        .validation-item.error {
+            border-left-color: #dc3545;
+            background-color: #fff8f8;
+        }
+
+        .validation-item.warning {
+            border-left-color: #ffc107;
+            background-color: #fffdf8;
+        }
+
+        .validation-section {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        .validation-success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+        }
+        .validation-error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+        }
+        .validation-warning {
+            background-color: #fff3cd;
+            border: 1px solid #ffeeba;
+        }
+        .validation-info {
+            background-color: #e2e3e5;
+            border: 1px solid #d6d8db;
+        }
+        .validation-details {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 3px;
+        }
+        .loading {
+            display: none;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 2rem 0;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+            
+            .drop-zone {
+                padding: 2rem;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header text-center">
+        <div class="container">
+            <h1>FMPy Validator</h1>
+            <p class="subtitle">快速验证您的 FMU 文件，确保模型质量</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-10">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="mb-0">文件上传</h4>
+                    </div>
+                    <div class="card-body">
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="fmuFile" class="form-label">选择FMU文件</label>
+                                <div class="drop-zone" id="dropZone">
+                                    <p class="mb-0">拖放FMU文件到这里或点击选择文件</p>
+                                    <small class="text-muted">支持.fmu文件，最大32MB</small>
+                                    <input type="file" class="d-none" id="fmuFile" name="file" accept=".fmu" required>
+                                </div>
+                            </div>
+                            <div class="d-flex">
+                                <button type="submit" class="btn btn-primary me-2" id="validateBtn">验证FMU</button>
+                                <button type="button" class="btn btn-danger" id="cancelBtn" style="display: none;">取消上传</button>
+                            </div>
+                        </form>
+
+                        <div id="progressSection" style="display: none;" class="mt-3">
+                            <div class="progress">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                     role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+
+                        <div class="loading mt-3">
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                                <div class="ms-3">正在验证，请稍候...</div>
+                            </div>
+                            <div class="mt-3">
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="uploadProgressBar" 
+                                         role="progressbar" style="width: 0%"></div>
+                                </div>
+                                <div class="text-center mt-2">
+                                    <small id="uploadStatus">准备上传...</small>
+                                </div>
+                                <div class="text-center mt-2 text-danger" id="timeoutWarning" style="display: none;">
+                                    <small>验证耗时较长，请耐心等待...</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="resultSection" class="validation-result" style="display: none;">
+                            <div class="alert" role="alert" id="resultAlert"></div>
+                            
+                            <div class="report-section">
+                                <h4>验证报告</h4>
+                                <div id="validationDetails" class="validation-details"></div>
+                            </div>
+
+                            <div class="mt-3">
+                                <button class="btn btn-secondary" id="downloadReportBtn" style="display: none;">
+                                    下载完整报告
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer text-center">
+        <div class="container">
+            <p class="mb-0">© 2024 FMU 验证器 | 基于 FMPy 开发</p>
+        </div>
+    </footer>
+
+    <div class="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fmuFile');
+            const uploadForm = document.getElementById('uploadForm');
+            const progressSection = document.getElementById('progressSection');
+            const progressBar = document.querySelector('.progress-bar');
+            const resultSection = document.getElementById('resultSection');
+            const resultAlert = document.getElementById('resultAlert');
+            const validationDetails = document.getElementById('validationDetails');
+            const downloadReportBtn = document.getElementById('downloadReportBtn');
+            const validateBtn = document.getElementById('validateBtn');
+            const cancelBtn = document.getElementById('cancelBtn');
+            const uploadProgressBar = document.getElementById('uploadProgressBar');
+            const uploadStatus = document.getElementById('uploadStatus');
+            const timeoutWarning = document.getElementById('timeoutWarning');
+            
+            let currentReportId = null;
+            let controller = null;
+            let uploadTimeout = null;
+
+            // 拖放处理
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults, false);
+            });
+            
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.add('dragover');
+                });
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.remove('dragover');
+                });
+            });
+            
+            dropZone.addEventListener('drop', handleDrop);
+            dropZone.addEventListener('click', () => fileInput.click());
+            
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                handleFiles(files);
+            }
+            
+            fileInput.addEventListener('change', function() {
+                handleFiles(this.files);
+            });
+            
+            function handleFiles(files) {
+                if (files.length > 0) {
+                    const file = files[0];
+                    if (file.name.endsWith('.fmu')) {
+                        // 显示文件信息
+                        const fileInfo = document.createElement('div');
+                        fileInfo.className = 'alert alert-info mt-3';
+                        fileInfo.innerHTML = `
+                            <strong>已选择文件：</strong> ${file.name}<br>
+                            <small>大小：${formatFileSize(file.size)}</small>
+                        `;
+                        
+                        const existingInfo = dropZone.nextElementSibling;
+                        if (existingInfo && existingInfo.classList.contains('alert-info')) {
+                            existingInfo.remove();
+                        }
+                        dropZone.after(fileInfo);
+                    } else {
+                        alert('请上传FMU文件 (.fmu)');
+                    }
+                }
+            }
+            
+            function formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+            
+            uploadForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const file = fileInput.files[0];
+                if (!file) {
+                    alert('请选择文件');
+                    return;
+                }
+                
+                if (!file.name.endsWith('.fmu')) {
+                    alert('请上传FMU文件 (.fmu)');
+                    return;
+                }
+                
+                // 检查文件大小
+                const maxFileSize = 32 * 1024 * 1024; // 32MB
+                if (file.size > maxFileSize) {
+                    alert(`文件大小超过限制(32MB)，当前文件大小: ${formatFileSize(file.size)}`);
+                    return;
+                }
+                
+                // 显示加载提示
+                const loadingElement = document.querySelector('.loading');
+                if (loadingElement) {
+                    loadingElement.style.display = 'block';
+                }
+                document.getElementById('validationDetails').innerHTML = '';
+                downloadReportBtn.style.display = 'none';
+                validateBtn.disabled = true;
+                validateBtn.textContent = '验证中...';
+                cancelBtn.style.display = 'inline-block';
+                uploadProgressBar.style.width = '0%';
+                uploadStatus.textContent = '准备上传...';
+                timeoutWarning.style.display = 'none';
+                
+                // 创建新的AbortController
+                controller = new AbortController();
+                const signal = controller.signal;
+                
+                // 设置超时显示
+                uploadTimeout = setTimeout(() => {
+                    timeoutWarning.style.display = 'block';
+                }, 10000); // 10秒后显示提示
+                
+                let retryCount = 0;
+                const maxRetries = 2;
+                
+                async function uploadWithRetry() {
+                    try {
+                        const formData = new FormData();
+                        // 使用不同的名称防止与服务器预期不匹配
+                        formData.append('fmu_file', file);
+                        formData.append('filename', file.name);
+                        
+                        // 模拟上传进度
+                        const totalSize = file.size;
+                        let loadedSize = 0;
+                        const progressInterval = setInterval(() => {
+                            if (loadedSize < totalSize) {
+                                // 模拟上传进度增加
+                                loadedSize += totalSize / 20; // 每次增加5%
+                                if (loadedSize > totalSize) loadedSize = totalSize;
+                                const percent = Math.min(90, Math.round((loadedSize / totalSize) * 100));
+                                uploadProgressBar.style.width = `${percent}%`;
+                                uploadStatus.textContent = `已上传 ${percent}%`;
+                            }
+                        }, 500);
+                        
+                        // 添加超时控制
+                        const timeout = 60000; // 60秒超时
+                        const timeoutPromise = new Promise((_, reject) => {
+                            setTimeout(() => reject(new Error('请求超时')), timeout);
+                        });
+                        
+                        // 竞争Promise
+                        const response = await Promise.race([
+                            fetch('/validate', {
+                                method: 'POST',
+                                body: formData,
+                                signal: signal,
+                                // 添加额外请求头以确保请求正确
+                                headers: {
+                                    'Accept': 'application/json',
+                                    'X-Requested-With': 'XMLHttpRequest'
+                                }
+                            }),
+                            timeoutPromise
+                        ]);
+                        
+                        // 清除进度模拟
+                        clearInterval(progressInterval);
+                        
+                        // 检查HTTP状态
+                        if (!response.ok) {
+                            throw new Error(`服务器错误: ${response.status} ${response.statusText}`);
+                        }
+                        
+                        uploadProgressBar.style.width = '100%';
+                        uploadStatus.textContent = '验证完成';
+                        
+                        const result = await response.json();
+                        
+                        // 无论结果如何，都尝试显示验证结果
+                        if (result.error && (!result.file_structure || result.file_structure.length === 0)) {
+                            // 如果只有错误，没有详细结果
+                            displayError(result.error || '验证过程发生未知错误');
+                        } else {
+                            // 即使验证失败，也显示所有可用结果
+                            displayResults(result);
+                        }
+                    } catch (error) {
+                        if (error.name === 'AbortError') {
+                            displayError('上传已取消');
+                        } else if (retryCount < maxRetries) {
+                            retryCount++;
+                            uploadStatus.textContent = `发生错误，正在重试(${retryCount}/${maxRetries})...`;
+                            // 等待1秒后重试
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                            return uploadWithRetry();
+                        } else {
+                            console.error('上传错误:', error);
+                            displayError(`验证过程发生错误: ${error.message}. 请检查文件格式或稍后重试。`);
+                        }
+                    }
+                }
+                
+                try {
+                    await uploadWithRetry();
+                } finally {
+                    if (uploadTimeout) {
+                        clearTimeout(uploadTimeout);
+                        uploadTimeout = null;
+                    }
+                    validateBtn.disabled = false;
+                    validateBtn.textContent = '验证FMU';
+                    cancelBtn.style.display = 'none';
+                    progressSection.style.display = 'none';
+                    const loadingElement = document.querySelector('.loading');
+                    if (loadingElement) {
+                        loadingElement.style.display = 'none';
+                    }
+                    controller = null;
+                }
+            });
+
+            function displayResults(result) {
+                validationDetails.innerHTML = '';
+                
+                const sections = [
+                    { key: 'file_structure', title: '文件结构验证' },
+                    { key: 'model_description', title: '模型描述验证' },
+                    { key: 'dll_validation', title: 'DLL验证' },
+                    { key: 'functional_validation', title: '功能验证' }
+                ];
+
+                // 检查是否有任何验证结果可以显示
+                let hasResults = false;
+                for (const section of sections) {
+                    if (result[section.key] && result[section.key].length > 0) {
+                        hasResults = true;
+                        break;
+                    }
+                }
+
+                // 如果没有结果并且有错误，创建一个错误显示
+                if (!hasResults && result.error) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'alert alert-danger';
+                    errorDiv.innerHTML = `<strong>验证错误:</strong> ${result.error}`;
+                    validationDetails.appendChild(errorDiv);
+                }
+
+                sections.forEach(section => {
+                    const sectionResults = result[section.key] || [];
+                    if (sectionResults.length > 0) {
+                        const sectionDiv = document.createElement('div');
+                        sectionDiv.className = 'mb-4';
+                        
+                        const sectionTitle = document.createElement('h5');
+                        sectionTitle.textContent = section.title;
+                        sectionDiv.appendChild(sectionTitle);
+
+                        sectionResults.forEach(result => {
+                            const itemDiv = document.createElement('div');
+                            itemDiv.className = 'validation-item';
+                            
+                            if (result.status === 'success') {
+                                itemDiv.classList.add('success');
+                            } else if (result.status === 'error') {
+                                itemDiv.classList.add('error');
+                            } else {
+                                itemDiv.classList.add('warning');
+                            }
+
+                            const message = document.createElement('div');
+                            message.textContent = result.message;
+                            itemDiv.appendChild(message);
+
+                            if (result.details) {
+                                const details = document.createElement('div');
+                                details.className = 'text-muted small mt-1';
+                                details.textContent = result.details;
+                                itemDiv.appendChild(details);
+                            }
+
+                            sectionDiv.appendChild(itemDiv);
+                        });
+
+                        validationDetails.appendChild(sectionDiv);
+                    }
+                });
+
+                // 显示验证结果汇总
+                if (result.summary) {
+                    const summaryDiv = document.createElement('div');
+                    summaryDiv.className = 'alert mt-4';
+                    
+                    if (result.summary.status === 'error') {
+                        summaryDiv.classList.add('alert-danger');
+                    } else if (result.summary.status === 'warning') {
+                        summaryDiv.classList.add('alert-warning');
+                    } else {
+                        summaryDiv.classList.add('alert-success');
+                    }
+                    
+                    summaryDiv.innerHTML = `<strong>${result.summary.message}</strong>`;
+                    
+                    // 添加错误列表
+                    if (result.summary.errors && result.summary.errors.length > 0) {
+                        const errorList = document.createElement('ul');
+                        errorList.className = 'mt-2 mb-0';
+                        result.summary.errors.forEach(error => {
+                            const li = document.createElement('li');
+                            li.textContent = error;
+                            errorList.appendChild(li);
+                        });
+                        summaryDiv.appendChild(errorList);
+                    }
+                    
+                    // 添加警告列表
+                    if (result.summary.warnings && result.summary.warnings.length > 0) {
+                        const warningHeader = document.createElement('p');
+                        warningHeader.className = 'mt-2 mb-1';
+                        warningHeader.textContent = '警告:';
+                        summaryDiv.appendChild(warningHeader);
+                        
+                        const warningList = document.createElement('ul');
+                        warningList.className = 'mb-0';
+                        result.summary.warnings.forEach(warning => {
+                            const li = document.createElement('li');
+                            li.textContent = warning;
+                            warningList.appendChild(li);
+                        });
+                        summaryDiv.appendChild(warningList);
+                    }
+                    
+                    validationDetails.appendChild(summaryDiv);
+                }
+                
+                resultSection.style.display = 'block';
+                
+                // 根据验证结果设置顶部提示
+                if (!result.success) {
+                    resultAlert.className = 'alert alert-danger';
+                    resultAlert.textContent = '验证失败！请修复错误后重试。';
+                } else if (result.summary && result.summary.status === 'warning') {
+                    resultAlert.className = 'alert alert-warning';
+                    resultAlert.textContent = '验证通过，但有警告需要注意。';
+                } else {
+                    resultAlert.className = 'alert alert-success';
+                    resultAlert.textContent = '验证完成！';
+                }
+                
+                downloadReportBtn.style.display = 'none'; // 暂时禁用报告下载按钮
+            }
+
+            function displayError(error) {
+                validationDetails.innerHTML = `
+                    <div class="alert alert-danger" role="alert">
+                        ${error}
+                    </div>
+                `;
+                resultSection.style.display = 'block';
+                resultAlert.className = 'alert alert-danger';
+                resultAlert.textContent = error;
+                downloadReportBtn.style.display = 'none';
+                
+                // 记录错误到控制台以便调试
+                console.error('验证错误:', error);
+            }
+
+            downloadReportBtn.addEventListener('click', function() {
+                if (currentReportId) {
+                    window.location.href = `/reports/${currentReportId}`;
+                }
+            });
+
+            // 取消上传按钮事件
+            cancelBtn.addEventListener('click', function() {
+                if (controller) {
+                    controller.abort();
+                    uploadStatus.textContent = '上传已取消';
+                }
+            });
+        });
+    </script>
+</body>
+</html> 
